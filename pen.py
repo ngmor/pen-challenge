@@ -159,26 +159,41 @@ try:
         depth_image = np.asanyarray(aligned_depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
         hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
+        color_image_with_tracking = copy.deepcopy(color_image)
 
         # Threshold HSV image to get only purple
         mask = cv2.inRange(hsv_image,pen_lower,pen_upper)
 
-        
+        # Get contours
         ret, thresh = cv2.threshold(mask, 127, 255, 0)
         contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
-        largest_contour = max(contours, key = cv2.contourArea)
 
-        moments = cv2.moments(largest_contour)
-        centroid_x = int(moments['m10']/moments['m00'])
-        centroid_y = int(moments['m01']/moments['m00'])
+        validContour = True
 
-        # Add contours to color image
-        color_image_with_tracking = copy.deepcopy(color_image)
-        color_image_with_tracking = cv2.drawContours(color_image_with_tracking, [largest_contour], 0, (0,255,0), 3)
+        # Make sure we have contours
+        if len(contours) <= 0:
+            validContour = False
 
-        # Add centroid to color image
-        color_image_with_tracking = cv2.circle(color_image_with_tracking, (centroid_x,centroid_y), radius=10, color=(0, 0, 255), thickness=-1)
+        else:
+            # Get largest contours
+            largest_contour = max(contours, key = cv2.contourArea)
+
+            # calculate moments
+            moments = cv2.moments(largest_contour)
+
+            # Not valid if this moment is 0
+            if moments['m00'] == 0:
+                validContour = False
+            else:
+                # Calculate centroids
+                centroid_x = int(moments['m10']/moments['m00'])
+                centroid_y = int(moments['m01']/moments['m00'])
+
+                # Add contours to image
+                color_image_with_tracking = cv2.drawContours(color_image_with_tracking, [largest_contour], 0, (0,255,0), 3)
+
+                # Add centroid to color image
+                color_image_with_tracking = cv2.circle(color_image_with_tracking, (centroid_x,centroid_y), radius=10, color=(0, 0, 255), thickness=-1)
         
         # Remove background - Set pixels further than clipping_distance to grey
         grey_color = 153
