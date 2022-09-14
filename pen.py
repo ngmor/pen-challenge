@@ -160,6 +160,11 @@ try:
 
         # Threshold HSV image to get only purple
         mask = cv2.inRange(hsv_image,pen_lower,pen_upper)
+
+        
+        ret, thresh = cv2.threshold(mask, 127, 255, 0)
+        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
         
         # Remove background - Set pixels further than clipping_distance to grey
         grey_color = 153
@@ -168,18 +173,19 @@ try:
 
         # Bitwise-AND mask and original image
         mask_result = cv2.bitwise_and(color_image,color_image,mask=mask)
-        
+
         # Render images:
         #   depth align to color on left
         #   depth on right
         depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
-        images = np.hstack((color_image,mask_result))
+        #images = np.hstack((color_image,mask_result))
         #images = np.hstack((bg_removed,mask_result, depth_colormap))
         #images = np.hstack((bg_removed, depth_colormap))
+        images = np.hstack((mask,mask))
+        #images = np.hstack((color_image,color_image_with_contours))
 
         #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.imshow(window_name, images)
-        cv2.imshow(window_name,mask)
 
         key = cv2.waitKey(1)
         # Press esc or 'q' to close the image window
