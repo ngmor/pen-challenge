@@ -61,40 +61,125 @@ clipping_distance = clipping_distance_in_meters / depth_scale
 align_to = rs.stream.color
 align = rs.align(align_to)
 
+# Define HSV color limits
+lower_H = 105
+lower_S = 104
+lower_V = 0
+
+# B = 69, G = 27, R = 26
+# H = 119, S = 159, V = 69
+upper_H = 139
+upper_S = 255
+upper_V = 255
+
+
+
+window_name = 'Pen Tracker'
+cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+lower_H_name = 'H Low'
+def trackbar_lower_H(val):
+    global lower_H
+    global upper_H
+    lower_H = val
+    lower_H = min(upper_H-1, lower_H)
+    cv2.setTrackbarPos(lower_H_name,window_name,lower_H)
+cv2.createTrackbar(lower_H_name, window_name,lower_H,180,trackbar_lower_H)
+
+lower_S_name = 'S low'
+def trackbar_lower_S(val):
+    global lower_S
+    global upper_S
+    lower_S = val
+    lower_S = min(upper_S-1, lower_S)
+    cv2.setTrackbarPos(lower_S_name,window_name,lower_S)
+cv2.createTrackbar(lower_S_name, window_name,lower_S,255,trackbar_lower_S)
+
+lower_V_name = 'V low'
+def trackbar_lower_V(val):
+    global lower_V
+    global upper_V
+    lower_V = val
+    lower_V = min(upper_V-1, lower_V)
+    cv2.setTrackbarPos(lower_V_name,window_name,lower_V)
+cv2.createTrackbar(lower_V_name, window_name,lower_V,255,trackbar_lower_V)
+
+upper_H_name = 'H Upp'
+def trackbar_upper_H(val):
+    global lower_H
+    global upper_H
+    upper_H = val
+    upper_H = max(lower_H-1, upper_H)
+    cv2.setTrackbarPos(upper_H_name,window_name,upper_H)
+cv2.createTrackbar(upper_H_name, window_name,upper_H,180,trackbar_upper_H)
+
+upper_S_name = 'S Upp'
+def trackbar_upper_S(val):
+    global lower_S
+    global upper_S
+    upper_S = val
+    upper_S = max(lower_S-1, upper_S)
+    cv2.setTrackbarPos(upper_S_name,window_name,upper_S)
+cv2.createTrackbar(upper_S_name, window_name,upper_S,255,trackbar_upper_S)
+
+upper_V_name = 'V Upp'
+def trackbar_upper_V(val):
+    global lower_V
+    global upper_V
+    upper_V = val
+    upper_V = max(lower_V-1, upper_V)
+    cv2.setTrackbarPos(upper_V_name,window_name,upper_V)
+cv2.createTrackbar(upper_V_name, window_name,upper_V,255,trackbar_upper_V)
+
 # Streaming loop
 try:
     while True:
+
+        # HSV values
+        pen_lower = np.array([lower_H,lower_S,lower_V])
+        pen_upper = np.array([upper_H,upper_S,upper_V])
+
         # Get frameset of color and depth
         frames = pipeline.wait_for_frames()
         # frames.get_depth_frame() is a 640x360 depth image
-
+        
         # Align the depth frame to color frame
         aligned_frames = align.process(frames)
 
         # Get aligned frames
         aligned_depth_frame = aligned_frames.get_depth_frame() # aligned_depth_frame is a 640x480 depth image
         color_frame = aligned_frames.get_color_frame()
-
+        
         # Validate that both frames are valid
         if not aligned_depth_frame or not color_frame:
             continue
 
         depth_image = np.asanyarray(aligned_depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
+        hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
 
+        # Threshold HSV image to get only purple
+        mask = cv2.inRange(hsv_image,pen_lower,pen_upper)
+        
         # Remove background - Set pixels further than clipping_distance to grey
         grey_color = 153
         depth_image_3d = np.dstack((depth_image,depth_image,depth_image)) #depth image is 1 channel, color is 3 channels
         bg_removed = np.where((depth_image_3d > clipping_distance) | (depth_image_3d <= 0), grey_color, color_image)
 
+        # Bitwise-AND mask and original image
+        mask_result = cv2.bitwise_and(color_image,color_image,mask=mask)
+        
         # Render images:
         #   depth align to color on left
         #   depth on right
         depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
-        images = np.hstack((bg_removed, depth_colormap))
+        images = np.hstack((color_image,mask_result))
+        #images = np.hstack((bg_removed,mask_result, depth_colormap))
+        #images = np.hstack((bg_removed, depth_colormap))
 
-        cv2.namedWindow('Align Example', cv2.WINDOW_NORMAL)
-        cv2.imshow('Align Example', images)
+        #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        cv2.imshow(window_name, images)
+
         key = cv2.waitKey(1)
         # Press esc or 'q' to close the image window
         if key & 0xFF == ord('q') or key == 27:
