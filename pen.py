@@ -12,6 +12,7 @@ import pyrealsense2 as rs
 import numpy as np
 # Import OpenCV for easy image rendering
 import cv2
+import copy
 
 # Create a pipeline
 pipeline = rs.pipeline()
@@ -164,7 +165,19 @@ try:
         
         ret, thresh = cv2.threshold(mask, 127, 255, 0)
         contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        
+        largest_contour = max(contours, key = cv2.contourArea)
 
+        moments = cv2.moments(largest_contour)
+        centroid_x = int(moments['m10']/moments['m00'])
+        centroid_y = int(moments['m01']/moments['m00'])
+
+        # Add contours to color image
+        color_image_with_tracking = copy.deepcopy(color_image)
+        color_image_with_tracking = cv2.drawContours(color_image_with_tracking, [largest_contour], 0, (0,255,0), 3)
+
+        # Add centroid to color image
+        color_image_with_tracking = cv2.circle(color_image_with_tracking, (centroid_x,centroid_y), radius=10, color=(0, 0, 255), thickness=-1)
         
         # Remove background - Set pixels further than clipping_distance to grey
         grey_color = 153
@@ -181,8 +194,8 @@ try:
         #images = np.hstack((color_image,mask_result))
         #images = np.hstack((bg_removed,mask_result, depth_colormap))
         #images = np.hstack((bg_removed, depth_colormap))
-        images = np.hstack((mask,mask))
-        #images = np.hstack((color_image,color_image_with_contours))
+        #images = np.hstack((mask,mask))
+        images = np.hstack((color_image,color_image_with_tracking))
 
         #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.imshow(window_name, images)
