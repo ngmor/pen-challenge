@@ -64,3 +64,18 @@ while mode != 'q':
         time = np.abs(command_position - current_position) / speed
 
         robot.arm.set_single_joint_position("shoulder",command_position,time)
+
+    elif mode.startswith("elb"):
+        parse = mode.split(" ")
+        if len(parse) < 2:
+            continue
+
+        command_position = float(parse[1])
+        command_position = clamp(command_position,-120.9,91.9)
+        command_position = np.deg2rad(command_position)
+
+        current_position = robot.arm.get_joint_commands()[Joints.ELBOW.value]
+
+        time = np.abs(command_position - current_position) / speed
+
+        robot.arm.set_single_joint_position("elbow",command_position,time)
