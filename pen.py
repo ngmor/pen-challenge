@@ -62,8 +62,8 @@ align_to = rs.stream.color
 align = rs.align(align_to)
 
 # Define HSV color limits
-lower_H = 105
-lower_S = 104
+lower_H = 117
+lower_S = 110
 lower_V = 0
 
 # B = 69, G = 27, R = 26
@@ -179,6 +179,7 @@ try:
 
         #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.imshow(window_name, images)
+        cv2.imshow(window_name,mask)
 
         key = cv2.waitKey(1)
         # Press esc or 'q' to close the image window
