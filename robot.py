@@ -28,9 +28,9 @@ speed = np.deg2rad(20) #deg/s
 while mode != 'q':
     mode=input("[h]ome, [s]leep, [q]uit ")
     if mode == "h":
-        robot.arm.go_to_home_pose()
+        robot.arm.go_to_home_pose(moving_time=2)
     elif mode == "s":
-        robot.arm.go_to_sleep_pose()
+        robot.arm.go_to_sleep_pose(moving_time=2)
     elif mode == "go":
         robot.gripper.release(2.0)
     elif mode == "gc":
@@ -79,3 +79,18 @@ while mode != 'q':
         time = np.abs(command_position - current_position) / speed
 
         robot.arm.set_single_joint_position("elbow",command_position,time)
+
+    elif mode.startswith("wrist"):
+        parse = mode.split(" ")
+        if len(parse) < 2:
+            continue
+
+        command_position = float(parse[1])
+        command_position = clamp(command_position,-100,100)
+        command_position = np.deg2rad(command_position)
+
+        current_position = robot.arm.get_joint_commands()[Joints.WRIST.value]
+
+        time = np.abs(command_position - current_position) / speed
+
+        robot.arm.set_single_joint_position("wrist_angle",command_position,time)
