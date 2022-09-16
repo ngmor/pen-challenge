@@ -26,6 +26,11 @@ class Robot:
 
         self.ctrl.arm.set_single_joint_position(axis,command_position)
 
+    def absMove(self,axis,pos):
+        pos = np.deg2rad(pos)
+
+        self.ctrl.arm.set_single_joint_position(axis,pos)
+
     def getEndEffector(self):
         joints = self.ctrl.arm.get_joint_commands()
         T = mr.FKinSpace(self.ctrl.arm.robot_des.M, self.ctrl.arm.robot_des.Slist, joints)

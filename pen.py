@@ -17,6 +17,7 @@ import cv2
 import copy
 from robot import Robot
 import csv
+import time
 
 # Create a pipeline
 pipeline = rs.pipeline()
@@ -173,6 +174,8 @@ ocy = 0.22700001078192145
 ocz = 0.17914032450174594
 
 following = False
+relay = False
+relayStart = False
 lastFollowing = following
 
 
@@ -328,14 +331,11 @@ try:
 
 
         elif key & 0xFF == ord('f'):
-            if not following:
-                robot.ctrl.gripper.release(2)
-                robot.ctrl.arm.go_to_sleep_pose()
-                robot.relMove("shoulder", 10)
-                robot.relMove("elbow", -10)
-
-
             following = not following
+
+        elif key & 0xFF == ord('r'):
+            following = True
+            relay = True
             
         elif key & 0xFF == ord('p'):
             [Cx,Cy,Cd] = getCameraCoordinates()
@@ -349,7 +349,31 @@ try:
                 Pz = robotPenCoordinates[2]
                 print(f"Pen: Px = {Px}, Py = {Py}, Pz = {Pz}")
         
-        #elif key & 0xFF == ord('r')
+        elif key & 0xFF == ord('t'):
+            robot.ctrl.arm.go_to_home_pose()
+            robot.absMove("elbow",-40)
+            robot.absMove("waist",160)
+            robot.absMove("elbow",10)
+
+        elif key & 0xFF == ord('y'):
+            robot.absMove("elbow",-40)
+            robot.absMove("waist",0)
+            robot.ctrl.arm.go_to_sleep_pose()
+
+
+        if lastFollowing != following:
+            
+            if following:
+                print("Start following")
+                robot.ctrl.gripper.release(2)
+                robot.ctrl.arm.go_to_sleep_pose()
+                robot.relMove("shoulder", 10)
+                robot.relMove("elbow", -10)
+            else:
+                print("Stop following")
+
+            lastFollowing = following
+                
 
         if following:
             robotPenCoordinates = getPenInRobotCoordinates()
@@ -381,17 +405,23 @@ try:
                     print("Grip")
                     robot.ctrl.gripper.grasp(2)
                     following = False
-        
-        if lastFollowing != following:
-            
-            if following:
-                print("Start following")
-            else:
-                print("Stop following")
+                    relayStart = relay
 
-            lastFollowing = following
+        if relayStart:
+            time.sleep(10)
+            robot.ctrl.arm.go_to_home_pose()
+            robot.absMove("elbow",-40)
+            robot.absMove("waist",160)
+            robot.absMove("elbow",10)
+            time.sleep(30)
+            robot.ctrl.gripper.release(2)
+            time.sleep(10)
+            robot.absMove("elbow",-40)
+            robot.absMove("waist",0)
+            robot.ctrl.arm.go_to_sleep_pose()
+            relayStart = False
+            relay = False
 
-            
 
 finally:
     pipeline.stop()
