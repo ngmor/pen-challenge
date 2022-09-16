@@ -16,7 +16,7 @@ import numpy as np
 import cv2
 import copy
 from robot import Robot
-import time
+import csv
 
 # Create a pipeline
 pipeline = rs.pipeline()
@@ -176,6 +176,35 @@ following = False
 lastFollowing = following
 
 
+calFilename = "cal.csv"
+hsvFilename = "hsv.csv"
+
+try:
+    with open(calFilename, 'r') as calFile:
+        rdr = csv.reader(calFile)
+        for row in rdr:
+            ocx = float(row[0])
+            ocy = float(row[1])
+            ocz = float(row[2])
+        print(f"Translation: ocx = {ocx}, ocy = {ocy}, ocz = {ocz}")
+except Exception:
+    print("Error reading calibration file")
+
+try:
+    with open(hsvFilename,'r') as hsvFile:
+        rdr = csv.reader(hsvFile)
+        for i, row in enumerate(rdr):
+            if i == 0:
+                lower_H = int(row[0])
+                lower_S = int(row[1])
+                lower_V = int(row[2])
+            elif i == 1:
+                upper_H = int(row[0])
+                upper_S = int(row[1])
+                upper_V = int(row[2])
+except Exception:
+    print("Error reading HSV file")
+
 # Streaming loop
 try:
     while True:
@@ -272,9 +301,9 @@ try:
             robot.ctrl.gripper.release(delay=3)
             
         elif key & 0xFF == ord('h'):
-            robot.ctrl.arm.go_to_home_pose(moving_time=3)
+            robot.ctrl.arm.go_to_home_pose()
         elif key & 0xff == ord('s'):
-            robot.ctrl.arm.go_to_sleep_pose(moving_time=3)
+            robot.ctrl.arm.go_to_sleep_pose()
         
         elif key & 0xFF == ord('c'):
             
@@ -288,11 +317,22 @@ try:
                 ocz = Rz + Cy
                 print(f"Translation: ocx = {ocx}, ocy = {ocy}, ocz = {ocz}")
 
+                with open(calFilename,'w') as calFile:
+                    wrtr = csv.writer(calFile)
+                    wrtr.writerow([ocx,ocy,ocz])
+        elif key & 0xFF == ord('='):
+            with open(hsvFilename,'w') as hsvFile:
+                wrtr = csv.writer(hsvFile)
+                wrtr.writerow([lower_H,lower_S,lower_V])
+                wrtr.writerow([upper_H,upper_S,upper_V])
+
+
         elif key & 0xFF == ord('f'):
             if not following:
                 robot.ctrl.gripper.release(2)
-                robot.ctrl.arm.go_to_sleep_pose(moving_time=3)
-                robot.ctrl.arm.set_ee_cartesian_trajectory(x=0.01,z=0.01)
+                robot.ctrl.arm.go_to_sleep_pose()
+                robot.relMove("shoulder", 10)
+                robot.relMove("elbow", -10)
 
 
             following = not following
@@ -308,7 +348,8 @@ try:
                 Py = robotPenCoordinates[1]
                 Pz = robotPenCoordinates[2]
                 print(f"Pen: Px = {Px}, Py = {Py}, Pz = {Pz}")
-            
+        
+        #elif key & 0xFF == ord('r')
 
         if following:
             robotPenCoordinates = getPenInRobotCoordinates()
@@ -327,12 +368,18 @@ try:
 
                 print(f'Px = {Px}, Rx = {Rx}')
                 if np.abs(robot.getJointCommand("waist") - waistAngle) > waistTolerance:
+                    print("Adjust angle")
                     robot.ctrl.arm.set_single_joint_position('waist',waistAngle)
                 elif (np.abs(Px - Rx) > xTolerance) or (np.abs(Pz - Rz) > zTolerance):
-                    robot.ctrl.arm.set_ee_cartesian_trajectory(x=Px-Rx,z=Pz-Rz)
+
+                    try:
+                        print("Reach for pen")
+                        robot.ctrl.arm.set_ee_cartesian_trajectory(x=Px-Rx,z=Pz-Rz)
+                    except Warning:
+                        robot.ctrl.arm.set_ee_cartesian_trajectory(x=10,z=10)
                 elif (np.abs(Px - Rx) < xTolerance) and np.abs(robot.getJointCommand("waist") - waistAngle) < waistTolerance:
+                    print("Grip")
                     robot.ctrl.gripper.grasp(2)
-                    robot.ctrl.arm.go_to_home_pose()
                     following = False
         
         if lastFollowing != following:
