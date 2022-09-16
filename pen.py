@@ -45,6 +45,8 @@ else:
 
 # Start streaming
 profile = pipeline.start(config)
+profile_stream = profile.get_stream(rs.stream.color)
+intrinsics = profile_stream.as_video_stream_profile().get_intrinsics()
 
 # Getting the depth sensor's depth scale (see rs-align example for explanation)
 depth_sensor = profile.get_device().first_depth_sensor()
@@ -199,6 +201,7 @@ try:
         grey_color = 153
         depth_image_3d = np.dstack((depth_image,depth_image,depth_image)) #depth image is 1 channel, color is 3 channels
         bg_removed = np.where((depth_image_3d > clipping_distance) | (depth_image_3d <= 0), grey_color, color_image)
+        bg_removed_tracking = np.where((depth_image_3d > clipping_distance) | (depth_image_3d <= 0), grey_color, color_image_with_tracking)
 
         # Bitwise-AND mask and original image
         mask_result = cv2.bitwise_and(color_image,color_image,mask=mask)
@@ -211,7 +214,8 @@ try:
         #images = np.hstack((bg_removed,mask_result, depth_colormap))
         #images = np.hstack((bg_removed, depth_colormap))
         #images = np.hstack((mask,mask))
-        images = np.hstack((color_image,color_image_with_tracking))
+        #images = np.hstack((color_image,color_image_with_tracking))
+        images = np.hstack((color_image_with_tracking,bg_removed_tracking, depth_colormap))
 
         #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.imshow(window_name, images)
@@ -221,5 +225,12 @@ try:
         if key & 0xFF == ord('q') or key == 27:
             cv2.destroyAllWindows()
             break
+        elif key & 0xFF == ord('g'):
+            if validContour:
+                #print(f'x: {centroid_x}, y: {centroid_y}, d: {depth_image[centroid_y,centroid_x]}')
+                
+                position = rs.rs2_deproject_pixel_to_point(intrinsics,[centroid_x,centroid_y],depth_image[centroid_y,centroid_x])
+                print(position)
+                #print(f'x: {centroid_x}, y: {centroid_y}, d: {depth_image[centroid_y,centroid_x]}')
 finally:
     pipeline.stop()
