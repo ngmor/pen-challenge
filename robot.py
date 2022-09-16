@@ -33,6 +33,9 @@ class Robot:
 
         return p
 
+    def getJointCommand(self,joint):
+        return self.ctrl.arm.get_joint_commands()[joints[joint]]
+
 if __name__ == "__main__":
     robot = Robot()
 

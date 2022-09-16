@@ -158,8 +158,9 @@ def getPenInRobotCoordinates():
         return None
     Rx = ocx - Cx
     Ry = ocy - Cd
+    Rz = ocz - Cy
 
-    return [Rx,Ry]
+    return [Rx,Ry,Rz]
 
 def getWaistAngle(Rx,Ry):
     return np.arctan(Ry/Rx)
@@ -169,9 +170,10 @@ robot = Robot()
 
 ocx = 0.25689413363339614
 ocy = 0.22700001078192145
+ocz = 0.17914032450174594
 
 following = False
-
+lastFollowing = following
 
 
 # Streaming loop
@@ -225,7 +227,7 @@ try:
             # Not valid if this moment is 0
             if moments['m00'] == 0:
                 validContour = False
-            else:
+            else:  
                 # Calculate centroids
                 centroid_x = int(moments['m10']/moments['m00'])
                 centroid_y = int(moments['m01']/moments['m00'])
@@ -271,6 +273,8 @@ try:
             
         elif key & 0xFF == ord('h'):
             robot.ctrl.arm.go_to_home_pose(moving_time=3)
+        elif key & 0xff == ord('s'):
+            robot.ctrl.arm.go_to_sleep_pose(moving_time=3)
         
         elif key & 0xFF == ord('c'):
             
@@ -281,27 +285,64 @@ try:
                 print(f"Robot: Rx = {Rx}, Ry = {Ry}, Rz = {Rz}")
                 ocx = Rx + Cx
                 ocy = Ry + Cd
-                print(f"Translation: ocx = {ocx}, ocy = {ocy}")
+                ocz = Rz + Cy
+                print(f"Translation: ocx = {ocx}, ocy = {ocy}, ocz = {ocz}")
 
         elif key & 0xFF == ord('f'):
+            if not following:
+                robot.ctrl.gripper.release(2)
+                robot.ctrl.arm.go_to_sleep_pose(moving_time=3)
+                robot.ctrl.arm.set_ee_cartesian_trajectory(x=0.01,z=0.01)
+
+
             following = not following
+            
         elif key & 0xFF == ord('p'):
             [Cx,Cy,Cd] = getCameraCoordinates()
             print(f"Camera: Cx = {Cx}, Cy = {Cy}, Cd = {Cd}")
             [Rx,Ry,Rz] = robot.getEndEffector()
             print(f"Robot: Rx = {Rx}, Ry = {Ry}, Rz = {Rz}")
+            robotPenCoordinates = getPenInRobotCoordinates()
+            if robotPenCoordinates is not None:
+                Px = robotPenCoordinates[0]
+                Py = robotPenCoordinates[1]
+                Pz = robotPenCoordinates[2]
+                print(f"Pen: Px = {Px}, Py = {Py}, Pz = {Pz}")
+            
 
         if following:
             robotPenCoordinates = getPenInRobotCoordinates()
             if robotPenCoordinates is not None:
-                [Cx,Cy,Cd] = getCameraCoordinates()
-                Rx = robotPenCoordinates[0]
-                Ry = robotPenCoordinates[1]
+                [Rx,Ry,Rz] = robot.getEndEffector()
+                Px = robotPenCoordinates[0]
+                Py = robotPenCoordinates[1]
+                Pz = robotPenCoordinates[2]
 
-                waistAngle = getWaistAngle(Rx,Ry)
-                #print(f'Cx = {Cx},\tCd = {Cd},\tRx = {Rx},\tRy = {Ry},\tAngle {np.rad2deg(waistAngle)}')
-                robot.ctrl.arm.set_single_joint_position('waist',waistAngle)  
+                waistAngle = getWaistAngle(Px,Py)
                 
+                waistTolerance = np.deg2rad(2)
+                xTolerance = 50/1000
+                zTolerance = 50/1000
+
+
+                print(f'Px = {Px}, Rx = {Rx}')
+                if np.abs(robot.getJointCommand("waist") - waistAngle) > waistTolerance:
+                    robot.ctrl.arm.set_single_joint_position('waist',waistAngle)
+                elif (np.abs(Px - Rx) > xTolerance) or (np.abs(Pz - Rz) > zTolerance):
+                    robot.ctrl.arm.set_ee_cartesian_trajectory(x=Px-Rx,z=Pz-Rz)
+                elif (np.abs(Px - Rx) < xTolerance) and np.abs(robot.getJointCommand("waist") - waistAngle) < waistTolerance:
+                    robot.ctrl.gripper.grasp(2)
+                    following = False
+        
+        if lastFollowing != following:
+            
+            if following:
+                print("Start following")
+            else:
+                print("Stop following")
+
+            lastFollowing = following
+
             
 
 finally:
