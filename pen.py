@@ -7,12 +7,16 @@
 #####################################################
 
 # First import the library
+import enum
+from tracemalloc import start
 import pyrealsense2 as rs
 # Import Numpy for easy array manipulation
 import numpy as np
 # Import OpenCV for easy image rendering
 import cv2
 import copy
+from robot import Robot
+import time
 
 # Create a pipeline
 pipeline = rs.pipeline()
@@ -65,13 +69,13 @@ align_to = rs.stream.color
 align = rs.align(align_to)
 
 # Define HSV color limits
-lower_H = 117
-lower_S = 110
-lower_V = 0
+lower_H = 119#117
+lower_S = 74#110
+lower_V = 0#0
 
 # B = 69, G = 27, R = 26
 # H = 119, S = 159, V = 69
-upper_H = 139
+upper_H = 164#139
 upper_S = 255
 upper_V = 255
 
@@ -134,6 +138,41 @@ if useTrackbars:
         upper_V = max(lower_V-1, upper_V)
         cv2.setTrackbarPos(upper_V_name,window_name,upper_V)
     cv2.createTrackbar(upper_V_name, window_name,upper_V,255,trackbar_upper_V)
+
+def getCameraCoordinates():
+    """Returns camera coordinates in meters, [x,y,depth]"""
+
+    position = rs.rs2_deproject_pixel_to_point(intrinsics,[centroid_x,centroid_y],depth_image[centroid_y,centroid_x])
+    
+    for i, coord in enumerate(position):
+        position[i] = position[i] * depth_scale
+    
+    return position
+
+def isValidDepth(depth):
+    return (depth > 0.15) and (depth < 0.5)
+
+def getPenInRobotCoordinates():
+    [Cx,Cy,Cd] = getCameraCoordinates()
+    if not isValidDepth(Cd):
+        return None
+    Rx = ocx - Cx
+    Ry = ocy - Cd
+
+    return [Rx,Ry]
+
+def getWaistAngle(Rx,Ry):
+    return np.arctan(Ry/Rx)
+
+# Setup robot
+robot = Robot()
+
+ocx = 0.25689413363339614
+ocy = 0.22700001078192145
+
+following = False
+
+
 
 # Streaming loop
 try:
@@ -226,11 +265,45 @@ try:
             cv2.destroyAllWindows()
             break
         elif key & 0xFF == ord('g'):
+            robot.ctrl.gripper.grasp(delay=3)
+        elif key & 0xFF == ord('o'):
+            robot.ctrl.gripper.release(delay=3)
+            
+        elif key & 0xFF == ord('h'):
+            robot.ctrl.arm.go_to_home_pose(moving_time=3)
+        
+        elif key & 0xFF == ord('c'):
+            
             if validContour:
-                #print(f'x: {centroid_x}, y: {centroid_y}, d: {depth_image[centroid_y,centroid_x]}')
+                [Cx,Cy,Cd] = getCameraCoordinates()
+                print(f"Camera: Cx = {Cx}, Cy = {Cy}, Cd = {Cd}")
+                [Rx,Ry,Rz] = robot.getEndEffector()
+                print(f"Robot: Rx = {Rx}, Ry = {Ry}, Rz = {Rz}")
+                ocx = Rx + Cx
+                ocy = Ry + Cd
+                print(f"Translation: ocx = {ocx}, ocy = {ocy}")
+
+        elif key & 0xFF == ord('f'):
+            following = not following
+        elif key & 0xFF == ord('p'):
+            [Cx,Cy,Cd] = getCameraCoordinates()
+            print(f"Camera: Cx = {Cx}, Cy = {Cy}, Cd = {Cd}")
+            [Rx,Ry,Rz] = robot.getEndEffector()
+            print(f"Robot: Rx = {Rx}, Ry = {Ry}, Rz = {Rz}")
+
+        if following:
+            robotPenCoordinates = getPenInRobotCoordinates()
+            if robotPenCoordinates is not None:
+                [Cx,Cy,Cd] = getCameraCoordinates()
+                Rx = robotPenCoordinates[0]
+                Ry = robotPenCoordinates[1]
+
+                waistAngle = getWaistAngle(Rx,Ry)
+                #print(f'Cx = {Cx},\tCd = {Cd},\tRx = {Rx},\tRy = {Ry},\tAngle {np.rad2deg(waistAngle)}')
+                robot.ctrl.arm.set_single_joint_position('waist',waistAngle)  
                 
-                position = rs.rs2_deproject_pixel_to_point(intrinsics,[centroid_x,centroid_y],depth_image[centroid_y,centroid_x])
-                print(position)
-                #print(f'x: {centroid_x}, y: {centroid_y}, d: {depth_image[centroid_y,centroid_x]}')
+            
+
 finally:
     pipeline.stop()
+    
