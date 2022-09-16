@@ -321,7 +321,7 @@ try:
                 waistAngle = getWaistAngle(Px,Py)
                 
                 waistTolerance = np.deg2rad(2)
-                xTolerance = 50/1000
+                xTolerance = 25/1000
                 zTolerance = 50/1000
 
 
@@ -332,6 +332,7 @@ try:
                     robot.ctrl.arm.set_ee_cartesian_trajectory(x=Px-Rx,z=Pz-Rz)
                 elif (np.abs(Px - Rx) < xTolerance) and np.abs(robot.getJointCommand("waist") - waistAngle) < waistTolerance:
                     robot.ctrl.gripper.grasp(2)
+                    robot.ctrl.arm.go_to_home_pose()
                     following = False
         
         if lastFollowing != following:
